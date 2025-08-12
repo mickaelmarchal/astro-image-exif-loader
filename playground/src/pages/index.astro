@@ -1,0 +1,24 @@
+---
+import imageImporter from "astro-image-exif-loader/importer";
+import { getCollection } from "astro:content";
+import { Image } from "astro:assets";
+
+const images = await imageImporter(await getCollection("images"));
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>EXIF Gallery Loader</title>
+  </head>
+  <body>
+    <h1>EXIF Gallery Loader</h1>
+
+    <Image src={images[0].defaultImport!} alt="" width="100" />
+    <img src={String(images[0]?.defaultImport?.src)} alt="" width="100" />
+    <p>{images[0].data.fileName}</p>
+  </body>
+</html>

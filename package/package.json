@@ -1,0 +1,59 @@
+{
+  "name": "astro-image-exif-loader",
+  "version": "0.1.0",
+  "description": "Astro content collection loader for extracting EXIF data from images with Astro Assets integration",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./importer": {
+      "types": "./dist/importer.d.ts",
+      "import": "./dist/importer.js"
+    },
+    "./loader": {
+      "types": "./dist/loader.d.ts",
+      "import": "./dist/loader.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts"
+    }
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch"
+  },
+  "dependencies": {
+    "exiftool-vendored": "^30.3.0",
+    "picomatch": "^4.0.3",
+    "tinyglobby": "^0.2.14"
+  },
+  "peerDependencies": {
+    "astro": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/picomatch": "^4.0.2",
+    "tsdown": "^0.5.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.1"
+  },
+  "keywords": [
+    "astro",
+    "exif",
+    "images",
+    "loader",
+    "content-collections",
+    "photography",
+    "metadata"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/user/astro-image-exif-loader.git"
+  },
+  "license": "MIT"
+}

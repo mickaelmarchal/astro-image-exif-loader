@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "declaration": true,
+    "strict": true,
+    "moduleResolution": "Node16",
+    "target": "ES2022",
+    "module": "Node16",
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "declarationMap": true,
+    "allowImportingTsExtensions": false,
+    "verbatimModuleSyntax": true,
+    "stripInternal": true,
+    "lib": ["ESNext"],
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src/**/*", "test/**/*.test.ts"],
+  "exclude": ["node_modules", "dist", "test/fixtures/**/*"]
+}

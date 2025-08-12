@@ -1,0 +1,502 @@
+---
+import { getCollection } from "astro:content";
+import imageImporter from "astro-image-exif-loader/importer";
+import { Image, getImage } from "astro:assets";
+import "photoswipe/style.css";
+
+const images = await imageImporter(await getCollection("images"));
+
+function getYear(data: any): string {
+  const candidates = [data.DateTimeOriginal, data.CreateDate, data.DateTime];
+  for (const c of candidates) {
+    if (typeof c === "string" && c) {
+      const m = c.match(/^(\d{4})/);
+      if (m) return m[1];
+    }
+  }
+  return "Unknown Year";
+}
+
+const byYear = new Map<string, typeof images>();
+for (const e of images) {
+  const year = getYear(e.data);
+  if (!byYear.has(year)) byYear.set(year, [] as any);
+  byYear.get(year)!.push(e);
+}
+
+const years = [...byYear.keys()].sort((a, b) =>
+  a === "Unknown" ? 1 : b === "Unknown" ? -1 : a > b ? -1 : 1
+);
+
+interface GalleryItem {
+  year: string;
+  rows: Array<[string, string]>;
+  full: any;
+  entry: (typeof images)[number];
+}
+const galleryItems: GalleryItem[] = [];
+for (const year of years) {
+  const yearimages = byYear.get(year)!;
+  for (const entry of yearimages) {
+    if (!entry.defaultImport) {
+      console.warn(
+        "Skipping entry with no defaultImport:",
+        entry.data.fileName
+      );
+      continue;
+    }
+    const rows: Array<[string, string]> = [];
+    for (const [k, v] of Object.entries(entry.data)) {
+      if (k === "rawExif" || k === "srcPath") continue;
+      if (v === null || v === undefined || v === "") continue;
+      rows.push([k, Array.isArray(v) ? v.join(", ") : String(v)]);
+    }
+    let full: any;
+    try {
+      full = await getImage({ src: entry.defaultImport });
+      if (full) {
+        galleryItems.push({ year, rows, full, entry });
+      } else {
+        console.warn("Failed to getImage for:", entry.data.fileName);
+      }
+    } catch (e) {
+      console.warn("Failed to load full image for", entry.data.fileName, e);
+    }
+  }
+}
+// Group galleryItems by year again for template rendering
+const grouped: Record<string, GalleryItem[]> = {};
+for (const gi of galleryItems) {
+  (grouped[gi.year] ||= []).push(gi);
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gallery</title>
+    <meta name="viewport" content="width=device-width" />
+    <style>
+      body {
+        font-family: system-ui;
+        margin: 0;
+        padding: 1rem;
+        background: #f8fafc;
+      }
+      h1 {
+        margin-top: 0;
+        color: #1e293b;
+        text-align: center;
+        font-weight: 300;
+        font-size: 2.5rem;
+      }
+      h2 {
+        color: #475569;
+        font-weight: 400;
+        margin-bottom: 1.5rem;
+      }
+      .year-section {
+        margin-bottom: 4rem;
+      }
+      .thumb-grid {
+        display: grid;
+        /* Use a resilient responsive grid without manual spans */
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1rem;
+        align-items: start;
+        justify-items: stretch;
+        grid-auto-flow: row;
+      }
+      .thumb {
+        position: relative;
+        border-radius: 12px;
+        background: #fff;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        width: 100%;
+        max-width: 100%;
+      }
+      .thumb:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+      }
+      /* Remove manual spanning to avoid unpredictable gaps */
+      .image-container {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        /* Provide a stable minimum height without forcing spans */
+        min-height: 200px;
+        background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+      }
+      .image-container img {
+        max-width: 100%;
+        max-height: 100%;
+        height: auto;
+        display: block;
+        object-fit: contain;
+        object-position: center;
+        transition: transform 0.3s ease;
+      }
+      .thumb:hover .image-container img {
+        transform: scale(1.05);
+      }
+      .exif-popover {
+        display: none;
+        position: absolute;
+        background: #f8fafc;
+        color: black;
+        border-radius: 8px;
+        padding: 1rem;
+        max-width: 350px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        border: 1px solid #e5e7eb;
+        z-index: 1000;
+      }
+
+      .exif-popover table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .exif-popover th,
+      .exif-popover td {
+        border-bottom: 1px solid #e5e7eb;
+        color: black;
+      }
+      .exif-popover th {
+        color: black;
+      }
+
+      /* Mobile EXIF display (shown when hover not available) */
+      .exif-mobile {
+        display: none;
+        background: #f8fafc;
+        color: black;
+        padding: 1rem;
+        border-top: 1px solid #e5e7eb;
+        font-size: 0.75rem;
+        max-height: 450px;
+        overflow-y: auto;
+      }
+      .exif-mobile table {
+        width: 100%;
+      }
+      .exif-mobile th,
+      .exif-mobile td {
+        border-bottom: 1px solid #e5e7eb;
+        color: black;
+      }
+      .exif-mobile th {
+        color: black;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 3px 6px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        vertical-align: top;
+      }
+      th {
+        font-weight: 600;
+        color: #e2e8f0;
+        word-break: break-all;
+        hyphens: auto;
+        width: max-content;
+      }
+      td {
+        color: #f1f5f9;
+        word-break: break-word;
+        width: 70%;
+      }
+      .caption {
+        padding: 1rem;
+        font-size: 0.85rem;
+        color: #475569;
+        font-weight: 500;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+      }
+      .pswp--custom-root {
+        z-index: 10000;
+      }
+
+      /* Hide popover and show mobile EXIF when hover not available */
+      @media (hover: none) {
+        .exif-popover {
+          display: none !important;
+        }
+        .exif-mobile {
+          display: block;
+        }
+        .caption {
+          display: none;
+        }
+      }
+
+      /* Responsive masonry adjustments */
+      /* No special spanning rules on wide screens */
+
+      @media (max-width: 768px) {
+        .thumb-grid {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+          justify-items: stretch;
+        }
+        .thumb {
+          max-width: 500px;
+          width: 100%;
+          background: #f1f5f9;
+          box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .image-container {
+          min-height: 250px;
+          padding: 2rem;
+        }
+        /* Force mobile view on small screens regardless of hover capability */
+        .exif-popover {
+          display: none !important;
+        }
+        .exif-mobile {
+          display: block;
+        }
+        .caption {
+          display: none;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .thumb-grid {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>EXIF Gallery</h1>
+    {
+      years.map((year) => (
+        <section class="year-section" id={year}>
+          <h2>{year}</h2>
+          <div class="thumb-grid">
+            {grouped[year]
+              ?.filter(({ entry, full }) => {
+                return (
+                  entry.defaultImport &&
+                  full &&
+                  (full.attributes?.width || full.width)
+                );
+              })
+              .map(({ entry, rows, full }) => {
+                const actualWidth = full.attributes?.width || full.width;
+                const actualHeight = full.attributes?.height || full.height;
+
+                let thumbWidth = actualWidth;
+                let thumbHeight = actualHeight;
+
+                if (actualWidth && actualHeight) {
+                  const maxSize = 450;
+                  if (actualWidth > maxSize || actualHeight > maxSize) {
+                    const ratio = Math.min(
+                      maxSize / actualWidth,
+                      maxSize / actualHeight
+                    );
+                    thumbWidth = Math.round(actualWidth * ratio);
+                    thumbHeight = Math.round(actualHeight * ratio);
+                  }
+                }
+
+                return (
+                  <div
+                    class="thumb"
+                    data-pswp-src={full.src}
+                    data-pswp-width={actualWidth}
+                    data-pswp-height={actualHeight}
+                    data-pswp-alt={entry.data.fileName}
+                  >
+                    <a href={full.src} class="pswp-trigger" data-pswp-open>
+                      <div class="image-container">
+                        {entry.defaultImport && (
+                          <Image
+                            src={entry.defaultImport}
+                            alt={entry.data.fileName}
+                            width={thumbWidth}
+                            height={thumbHeight}
+                            style="max-width: 100%; height: auto; object-fit: cover;"
+                          />
+                        )}
+                      </div>
+                    </a>
+                    <div class="caption">{entry.data.fileName}</div>
+                    <div class="exif-mobile">
+                      <table>
+                        <tbody>
+                          {rows.map(([k, v]) => (
+                            <tr>
+                              <th>{k}</th>
+                              <td>{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      ))
+    }
+
+    <!-- Floating popover for EXIF data -->
+    <div id="exif-popover" class="exif-popover">
+      <table id="exif-table">
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <script>
+      import PhotoSwipeLightbox from "photoswipe/lightbox";
+      import { computePosition, flip, shift, offset } from "@floating-ui/dom";
+
+      // PhotoSwipe setup
+      const lightbox = new PhotoSwipeLightbox({
+        gallery: "body",
+        children: ".thumb",
+        pswpModule: () => import("photoswipe"),
+      });
+
+      lightbox.addFilter(
+        "thumbEl",
+        (thumbEl: HTMLElement | null | undefined): HTMLElement => {
+          const img = thumbEl?.querySelector("img");
+          return img || thumbEl || document.createElement("div");
+        }
+      );
+
+      lightbox.addFilter("itemData", (itemData: any, index: number) => {
+        const allThumbs = document.querySelectorAll(".thumb");
+        const element = allThumbs[index] as HTMLElement;
+        if (!element) return itemData;
+
+        return {
+          src: element.dataset.pswpSrc,
+          width: parseInt(element.dataset.pswpWidth || "0"),
+          height: parseInt(element.dataset.pswpHeight || "0"),
+          alt: element.dataset.pswpAlt,
+        };
+      });
+
+      lightbox.init();
+
+      const popover = document.getElementById(
+        "exif-popover"
+      ) as HTMLElement | null;
+      const exifTable = document.getElementById("exif-table");
+      const popoverTable = exifTable?.querySelector(
+        "tbody"
+      ) as HTMLElement | null;
+      let currentThumb: HTMLElement | null = null;
+      let hideTimeout: number | null = null;
+
+      const supportsHover = window.matchMedia("(hover: hover)").matches;
+      const isNarrowScreen = window.matchMedia("(max-width: 768px)").matches;
+
+      if (supportsHover && !isNarrowScreen && popover && popoverTable) {
+        document.addEventListener("mouseover", async (ev: MouseEvent) => {
+          const target = ev.target as HTMLElement | null;
+          const thumb = target?.closest(".thumb") as HTMLElement | null;
+          if (thumb && thumb !== currentThumb) {
+            if (hideTimeout) clearTimeout(hideTimeout);
+            currentThumb = thumb;
+
+            // Get EXIF data from the mobile section
+            const mobileExif = thumb.querySelector(
+              ".exif-mobile table tbody"
+            ) as HTMLElement | null;
+            if (mobileExif && popoverTable && popover) {
+              popoverTable.innerHTML = mobileExif.innerHTML;
+              popover.style.display = "block";
+
+              // Position the popover using floating-ui (prefer top-left)
+              const { x, y } = await computePosition(thumb, popover, {
+                placement: "top-start",
+                middleware: [
+                  offset(10),
+                  flip({
+                    fallbackPlacements: [
+                      "top-end",
+                      "top",
+                      "bottom-start",
+                      "bottom-end",
+                      "bottom",
+                    ],
+                    fallbackStrategy: "bestFit",
+                  }),
+                  shift({ padding: 16 }),
+                ],
+              });
+
+              Object.assign(popover.style, {
+                left: `${x}px`,
+                top: `${y}px`,
+              });
+            }
+          }
+        });
+
+        // Hide popover when leaving thumb area
+        document.addEventListener("mouseleave", (ev: MouseEvent) => {
+          const target = ev.target as HTMLElement | null;
+          if (target?.closest(".thumb")) {
+            hideTimeout = window.setTimeout(() => {
+              if (popover) {
+                popover.style.display = "none";
+                currentThumb = null;
+              }
+            }, 100);
+          }
+        });
+
+        // Keep popover visible when hovering over it
+        popover.addEventListener("mouseenter", () => {
+          if (hideTimeout) clearTimeout(hideTimeout);
+        });
+
+        popover.addEventListener("mouseleave", () => {
+          if (popover) {
+            popover.style.display = "none";
+            currentThumb = null;
+          }
+        });
+      }
+
+      // Handle clicks on thumbnails for lightbox
+      document.addEventListener("click", (ev: MouseEvent) => {
+        const target = ev.target as HTMLElement | null;
+        const thumb = target?.closest(".thumb") as HTMLElement | null;
+
+        if (thumb) {
+          ev.preventDefault();
+          const allThumbs = document.querySelectorAll(".thumb");
+          const index = Array.from(allThumbs).indexOf(thumb);
+          if (index >= 0) {
+            lightbox.loadAndOpen(index);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
