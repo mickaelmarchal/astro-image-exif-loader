@@ -1,6 +1,6 @@
 # Astro Image EXIF Loader
 
-An Astro content collection loader that extracts EXIF metadata from images using exiftool-vendored, with optional Astro Assets integration for displaying the actual images.
+An Astro content collection loader that extracts EXIF metadata from images using exiftool-vendored.
 
 ## What it does
 
