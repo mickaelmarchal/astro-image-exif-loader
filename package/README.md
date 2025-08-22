@@ -6,10 +6,8 @@ An Astro content collection loader that extracts EXIF metadata from images using
 
 This package provides two main functions:
 
-1. **Loader**: Creates an Astro content collection from your images and extracts EXIF metadata into structured data. Each entry's `id` is the filename with extension (e.g., "photo.jpg").
-2. **Importer**: Optionally enhances collection entries with Astro Assets imports so you can display the actual images. Only works for images under `/src/`.
-
-The loader scans your image directory and creates collection entries with EXIF data. Use `getEntry("collection", "filename.jpg")` to get specific images by filename.
+1. **Loader**: Creates an Astro content collection from your images and extracts EXIF metadata. Each entry's `id` is the filename with extension (e.g., "photo.jpg").
+2. **Importer**: Extends the collection entries with a `entry.defaultImport` property, which includes the actual import of the image for use with Astro Image Optimization. Only works for images under `/src/`. Optional.
 
 ## Quick Start
 
@@ -33,25 +31,26 @@ export const collections = { images };
 
 ### 2. Use the data in your pages
 
-**Option A: Just EXIF data (no image display)**
+**Just EXIF data**
 
 ```astro
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, getEntry } from 'astro:content';
 
-const images = await getCollection('images');
+const imageData = await getCollection('images');
+const filenameData = await getEntry("images", "filename.jpg");
 ---
 
-{images.map(image => (
+{imageData.map(datum => (
   <div>
-    <h3>{image.data.fileName}</h3>
-    <p>Camera: {image.data.Make} {image.data.Model}</p>
-    <p>ISO: {image.data.ISO}</p>
+    <h3>{datum.data.fileName}</h3>
+    <p>Camera: {datum.data.Make} {datum.data.Model}</p>
+    <p>ISO: {datum.data.ISO}</p>
   </div>
 ))}
 ```
 
-**Option B: EXIF data + actual images**
+**EXIF data + Astro image optimization**
 
 ```ts
 ---
