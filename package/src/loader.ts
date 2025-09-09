@@ -175,8 +175,10 @@ async function processImage(
   includeRawExif: boolean,
 ) {
   try {
+    const srcRoot = pathResolve(rootPath, "src");
+    const relativePath = relative(srcRoot, filePath).replace(/\\/g, "/");
     const fileNameOnly = basename(filePath);
-    const id = fileNameOnly; // Use just the filename as the id
+    const id = relativePath; // Use the relative path as the id
 
     const stats = await stat(filePath);
     const mtime = stats.mtime.toISOString();
@@ -190,7 +192,7 @@ async function processImage(
     try {
       tags = await exiftool.read(filePath);
     } catch (error: any) {
-      const msg = `EXIF read failed for ${fileNameOnly}: ${error.message}`;
+      const msg = `EXIF read failed for ${id}: ${error.message}`;
       logger.warn(msg);
       tags = {};
     }
@@ -213,9 +215,9 @@ async function processImage(
     });
 
     if (success) {
-      logger.info(`Processed ${fileNameOnly}`);
+      logger.info(`Processed ${id}`);
     } else {
-      logger.debug(`Skipped ${fileNameOnly} (no changes)`);
+      logger.debug(`Skipped ${id} (no changes)`);
     }
   } catch (error: any) {
     logger.error(`Failed to process image ${filePath}: ${error.message}`);
